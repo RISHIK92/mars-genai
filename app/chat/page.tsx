@@ -240,7 +240,7 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <Terminal className="w-5 h-5 text-white" />
             <span className="text-xl font-bold tracking-tighter letter-spacing-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-              TERMINAL.AI
+              Mars.AI
             </span>
             <span className="text-xs text-white/70 border border-white/20 px-2 py-0.5 rounded-full bg-white/5">
               v2.0.0
@@ -454,7 +454,7 @@ export default function Home() {
             <div className="flex-1 flex">
               <div className="w-1/2 border-r border-white/20 relative">
                 <div className="absolute top-0 left-0 p-2 text-xs text-white/40 bg-black/50 rounded-br-sm">
-                  Terminal 1
+                  Mars 1
                 </div>
                 <div ref={outputRef} className="h-full p-6 overflow-auto text-sm whitespace-pre-wrap leading-relaxed">
                   {output ? (
@@ -469,14 +469,14 @@ export default function Home() {
                       <div className="w-12 h-12 border-2 border-white/20 rounded-full mb-4 flex items-center justify-center">
                         <Terminal className="w-5 h-5 text-white/50" />
                       </div>
-                      <span className="text-white/40 italic">Terminal 1 output...</span>
+                      <span className="text-white/40 italic">Mars 1 output...</span>
                     </div>
                   )}
                 </div>
               </div>
               <div className="w-1/2 relative">
                 <div className="absolute top-0 left-0 p-2 text-xs text-white/40 bg-black/50 rounded-br-sm">
-                  Terminal 2
+                  Mars 2
                 </div>
                 <div className="h-full p-6 overflow-auto text-sm whitespace-pre-wrap leading-relaxed">
                   {secondaryOutput ? (
@@ -486,7 +486,7 @@ export default function Home() {
                       <div className="w-12 h-12 border-2 border-white/20 rounded-full mb-4 flex items-center justify-center">
                         <Terminal className="w-5 h-5 text-white/50" />
                       </div>
-                      <span className="text-white/40 italic">Terminal 2 output...</span>
+                      <span className="text-white/40 italic">Mars 2 output...</span>
                     </div>
                   )}
                 </div>
@@ -520,7 +520,7 @@ export default function Home() {
       </main>
 
       <footer className="border-t border-white/20 py-3 px-6 text-xs text-white/50 flex justify-between bg-gradient-to-r from-black to-zinc-900">
-        <div className="font-medium">TERMINAL.AI © {new Date().getFullYear()}</div>
+        <div className="font-medium">Mars.AI © {new Date().getFullYear()}</div>
         <div className="flex gap-6">
           <span className="flex items-center gap-2">
             <span className="inline-block w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
