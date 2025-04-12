@@ -1,6 +1,5 @@
 "use client"
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 
 const Login: React.FC = () => {
