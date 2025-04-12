@@ -15,7 +15,6 @@ const Login: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Basic validation
     if (!email.trim()) {
       setErrorMessage("Please enter your email address");
       return;
@@ -26,20 +25,16 @@ const Login: React.FC = () => {
       return;
     }
 
-    // Clear any previous messages
     setErrorMessage('');
     setSuccessMessage('');
 
-    // Simulate login process
     setIsLoading(true);
 
     try {
-      // This would be replaced with actual authentication logic
       await new Promise(resolve => setTimeout(resolve, 1500));
 
       setSuccessMessage("Login successful! Redirecting...");
 
-      // Redirect to dashboard
       setTimeout(() => {
 
       }, 1000);
@@ -52,14 +47,10 @@ const Login: React.FC = () => {
 
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center p-4">
-      {/* Animated Background */}
       <div className="fixed inset-0 z-0 overflow-hidden bg-genai-dark bg-hero-pattern">
-        {/* Gradient Orbs */}
         <div className="absolute top-[10%] left-[15%] w-64 h-64 rounded-full bg-genai-purple/10 filter blur-3xl animate-float opacity-50" />
         <div className="absolute top-[40%] right-[5%] w-96 h-96 rounded-full bg-blue-500/5 filter blur-3xl animate-float opacity-40" style={{ animationDelay: "2s" }} />
         <div className="absolute bottom-[15%] left-[20%] w-80 h-80 rounded-full bg-purple-500/10 filter blur-3xl animate-float opacity-30" style={{ animationDelay: "4s" }} />
-
-        {/* Connected Nodes Effect (Only shown on larger screens) */}
         <div className="hidden lg:block absolute inset-0 z-0 opacity-10">
           <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
             <defs>
@@ -68,8 +59,6 @@ const Login: React.FC = () => {
               </pattern>
             </defs>
             <rect width="100%" height="100%" fill="url(#smallGrid)" />
-
-            {/* Nodes and lines */}
             <circle cx="10%" cy="20%" r="2" fill="#9b87f5" />
             <circle cx="30%" cy="15%" r="2" fill="#9b87f5" />
             <circle cx="20%" cy="40%" r="2" fill="#9b87f5" />
@@ -94,14 +83,12 @@ const Login: React.FC = () => {
       <div className="w-full max-w-md z-10">
         <div className="glass-card rounded-xl p-6 sm:p-8 backdrop-blur-lg">
           <div className="flex flex-col items-center justify-center mb-8">
-            {/* Logo */}
             <div className="flex items-center">
               <div className="relative">
                 <div className="h-12 flex items-center">
                   <div className="relative flex items-center justify-center">
                     <div className="absolute w-full h-full bg-genai-purple/30 rounded-full blur-md animate-pulse-slow"></div>
                     <div className="relative z-10 font-bold text-white flex items-center space-x-1">
-                      {/* Icon part */}
                       <div className="bg-gradient-to-br from-genai-purple-light to-genai-purple-dark p-1.5 rounded-lg">
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -136,7 +123,6 @@ const Login: React.FC = () => {
             </p>
           </div>
 
-          {/* Error and Success Messages */}
           {errorMessage && (
             <div className="mb-4 p-3 rounded-md bg-red-500/10 border border-red-500/20 text-red-400">
               <p>{errorMessage}</p>
@@ -148,7 +134,6 @@ const Login: React.FC = () => {
             </div>
           )}
 
-          {/* Login Form */}
           <div className="w-full max-w-md">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
@@ -249,7 +234,7 @@ const Login: React.FC = () => {
         </div>
 
         <div className="mt-8 text-center text-sm text-gray-500">
-          <p>© 2025 CloudAI. All rights reserved.</p>
+          <p>© 2025 MarsAI. All rights reserved.</p>
         </div>
       </div>
     </div>
