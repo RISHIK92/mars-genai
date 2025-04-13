@@ -16,7 +16,7 @@ const Profile: React.FC = () => {
     const [editMode, setEditMode] = useState(false);
     const [editData, setEditData] = useState(userData);
 
-    const [avatarUrl, setAvatarUrl] = useState('https://th.bing.com/th/id/OIP.C37g9qEC0oJ3Dz35nelhcQHaFj?rs=1&pid=ImgDetMain');
+    const [avatarUrl] = useState('https://th.bing.com/th/id/OIP.C37g9qEC0oJ3Dz35nelhcQHaFj?rs=1&pid=ImgDetMain');
 
     const handleSave = () => {
         setUserData(editData);
@@ -91,20 +91,6 @@ const Profile: React.FC = () => {
             <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
             <polyline points="17 21 17 13 7 13 7 21" />
             <polyline points="7 3 7 8 15 8" />
-        </svg>
-    );
-
-    const CameraIcon = () => (
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
-            <circle cx="12" cy="13" r="3" />
-        </svg>
-    );
-
-    const ArrowLeftIcon = () => (
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="m12 19-7-7 7-7" />
-            <path d="M19 12H5" />
         </svg>
     );
 

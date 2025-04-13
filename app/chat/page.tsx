@@ -23,9 +23,6 @@ import {
   Trash2,
   Upload,
   FileText,
-  Table,
-  BarChart,
-  LineChart,
   Download,
   Image as ImageIcon,
 } from "lucide-react"
@@ -52,14 +49,6 @@ interface CustomSettings {
   isCustom: boolean;
 }
 
-interface ModelOption {
-  id: string;
-  label: string;
-  description: string;
-  icon: string;
-  capabilities: string[];
-}
-
 interface UploadedFile {
   id: string;
   filename: string;
@@ -67,7 +56,6 @@ interface UploadedFile {
   type: string;
   status: string;
   progress?: number;
-  analysisType?: 'summary' | 'insights' | 'trends';
   parsedData?: any;
 }
 
@@ -198,17 +186,13 @@ export default function Home() {
   const [fullscreen, setFullscreen] = useState(false)
   const [splitView, setSplitView] = useState(false)
   const [systemStats, setSystemStats] = useState<SystemStats>({ cpu: 42, memory: 68, uptime: "12:34:56" })
-  const [secondaryOutput, setSecondaryOutput] = useState("")
   const [currentOutput, setCurrentOutput] = useState("")
   const [isTyping, setIsTyping] = useState(false)
   const [temperatureMode, setTemperatureMode] = useState(1)
   const [lengthMode, setLengthMode] = useState(1)
   const [generationMode, setGenerationMode] = useState("chat")
   const [showModeSelector, setShowModeSelector] = useState(false)
-  const [tokenUsage, setTokenUsage] = useState(0)
-  const [maxTokenLimit, setMaxTokenLimit] = useState(MAX_TOKENS)
   const [selectedCategory, setSelectedCategory] = useState("general")
-  const [templates, setTemplates] = useState([])
   const [selectedTemplate, setSelectedTemplate] = useState(null)
   const [showCustomSettings, setShowCustomSettings] = useState(false)
   const [customSettings, setCustomSettings] = useState<CustomSettings>({

@@ -30,7 +30,7 @@ const Login: React.FC = () => {
           router.replace("/chat")
         }
       } catch (error) {
-        authService.logout()
+        console.log(error)
       }
     }
 
@@ -61,6 +61,7 @@ const Login: React.FC = () => {
       router.replace("/chat")
     } catch (error: any) {
       setErrorMessage(error.response?.data?.error || "Invalid email or password")
+      console.log(error)
     } finally {
       setIsLoading(false)
     }
@@ -72,7 +73,6 @@ const Login: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#f8f5f2]">
-      {/* Left side - Illustration and welcome message */}
       <div className="hidden md:flex md:w-1/2 bg-gradient-to-br from-[#c1440e] to-[#8c3503] p-8 flex-col justify-between">
         <div className="flex items-center">
           <div className="bg-white p-2 rounded-lg shadow-md">
