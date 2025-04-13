@@ -101,7 +101,7 @@ const Login: React.FC = () => {
 
         <div className="my-auto max-w-md mx-auto text-center">
           <div className="mb-8">
-            <img src="/placeholder.svg?height=200&width=300" alt="AI Assistant Illustration" className="mx-auto" />
+
           </div>
           <h1 className="text-3xl font-bold text-white mb-4">Welcome to MarsAI</h1>
           <p className="text-white/90 text-lg">
@@ -258,8 +258,8 @@ const Login: React.FC = () => {
               <button
                 type="submit"
                 className={`w-full py-3 px-4 rounded-lg text-white font-medium transition-all ${isLoading
-                    ? "bg-[#e07a4c] cursor-not-allowed"
-                    : "bg-[#c1440e] hover:bg-[#8c3503] shadow-md hover:shadow-lg"
+                  ? "bg-[#e07a4c] cursor-not-allowed"
+                  : "bg-[#c1440e] hover:bg-[#8c3503] shadow-md hover:shadow-lg"
                   }`}
                 disabled={isLoading}
               >
