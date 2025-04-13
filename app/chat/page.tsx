@@ -1,7 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
+import { generationService, getModelByCategory } from '../services/generation'
 import {
   Terminal,
   Code,
@@ -20,7 +21,55 @@ import {
   ArrowUp,
   ArrowDown,
   Trash2,
+  Upload,
+  FileText,
+  Table,
+  BarChart,
+  LineChart,
+  Download,
+  Image as ImageIcon,
 } from "lucide-react"
+import { fileService } from "../services/file"
+
+interface HistoryItem {
+  id: number;
+  prompt: string;
+  output: string;
+  category: string;
+  template?: string;
+  imageUrl?: string;
+}
+
+interface SystemStats {
+  cpu: number;
+  memory: number;
+  uptime: string;
+}
+
+interface CustomSettings {
+  temperature: number;
+  max_tokens: number;
+  isCustom: boolean;
+}
+
+interface ModelOption {
+  id: string;
+  label: string;
+  description: string;
+  icon: string;
+  capabilities: string[];
+}
+
+interface UploadedFile {
+  id: string;
+  filename: string;
+  size: number;
+  type: string;
+  status: string;
+  progress?: number;
+  analysisType?: 'summary' | 'insights' | 'trends';
+  parsedData?: any;
+}
 
 const COMMANDS = [
   { name: "help", description: "Show available commands" },
@@ -35,137 +84,311 @@ const COMMANDS = [
   { name: "fullscreen", description: "Toggle fullscreen mode" },
 ]
 
+const TEMPERATURE_MODES = [
+  { value: 0.2, label: "Precise", description: "More focused and deterministic" },
+  { value: 0.7, label: "Balanced", description: "Good mix of creativity and accuracy" },
+  { value: 0.9, label: "Creative", description: "More diverse and experimental" },
+  { value: -1, label: "Custom", description: "Set your own temperature", icon: "➕" }
+]
+
+const LENGTH_MODES = [
+  { value: 500, label: "Short", description: "Brief and concise responses" },
+  { value: 1000, label: "Medium", description: "Detailed and balanced responses" },
+  { value: 2000, label: "Long", description: "Comprehensive and thorough responses" },
+  { value: -1, label: "Custom", description: "Set your own token length", icon: "➕" }
+]
+
+const GENERATION_MODES = [
+  {
+    id: "chat",
+    label: "Chat",
+    icon: "💬",
+    description: "General conversation and Q&A",
+    model: "gemini-2.0-flash-lite-001",
+    parameters: {
+      temperature: 0.7,
+      max_tokens: 1000
+    }
+  },
+  {
+    id: "research",
+    label: "Research",
+    icon: "🔍",
+    description: "In-depth research and analysis",
+    model: "gemini-2.0-pro",
+    parameters: {
+      temperature: 0.3,
+      max_tokens: 2000
+    }
+  },
+  {
+    id: "code",
+    label: "Code",
+    icon: "💻",
+    description: "Code generation and programming help",
+    model: "gemini-2.0-pro",
+    parameters: {
+      temperature: 0.2,
+      max_tokens: 2000
+    }
+  },
+  {
+    id: "image",
+    label: "Image",
+    icon: "🖼️",
+    description: "Image generation from text prompts",
+    model: "stable-diffusion-xl-1024-v1-0",
+    parameters: {
+      temperature: 0.7,
+      max_tokens: 1200
+    }
+  }
+]
+
+const MAX_TOKENS = 1000
+
+const PROMPT_CATEGORIES = [
+  { id: 'general', label: 'General', icon: '💬' },
+  { id: 'research', label: 'Research', icon: '🔍' },
+  { id: 'coding', label: 'Coding', icon: '💻' },
+  { id: 'creative', label: 'Creative', icon: '🎨' }
+]
+
+const ANALYSIS_TYPES = [
+  { id: 'summary', label: 'Summary', icon: '📊', description: 'Get a quick overview of the data' },
+  { id: 'insights', label: 'Insights', icon: '🔍', description: 'Find key patterns and correlations' },
+  { id: 'trends', label: 'Trends', icon: '📈', description: 'Analyze trends and changes over time' },
+];
+
+const getTemperatureByMode = (mode: number): number => {
+  switch (mode) {
+    case 0: // Precise
+      return 0.2;
+    case 1: // Balanced
+      return 0.7;
+    case 2: // Creative
+      return 0.9;
+    default:
+      return 0.7;
+  }
+};
+
+const getMaxTokensByLength = (length: number): number => {
+  switch (length) {
+    case 0: // Short
+      return 500;
+    case 1: // Medium
+      return 1000;
+    case 2: // Long
+      return 2000;
+    default:
+      return 1000;
+  }
+};
+
 export default function Home() {
   const [prompt, setPrompt] = useState("")
   const [output, setOutput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [history, setHistory] = useState<{ prompt: string; output: string; id: number }[]>([])
+  const [history, setHistory] = useState<HistoryItem[]>([])
   const [commandHistory, setCommandHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [activeId, setActiveId] = useState<number | null>(null)
   const [cursorVisible, setCursorVisible] = useState(true)
   const [fullscreen, setFullscreen] = useState(false)
   const [splitView, setSplitView] = useState(false)
-  const [suggestions, setSuggestions] = useState<string[]>([])
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const [systemStats, setSystemStats] = useState({ cpu: 42, memory: 68, uptime: "12:34:56" })
+  const [systemStats, setSystemStats] = useState<SystemStats>({ cpu: 42, memory: 68, uptime: "12:34:56" })
   const [secondaryOutput, setSecondaryOutput] = useState("")
+  const [currentOutput, setCurrentOutput] = useState("")
+  const [isTyping, setIsTyping] = useState(false)
+  const [temperatureMode, setTemperatureMode] = useState(1)
+  const [lengthMode, setLengthMode] = useState(1)
+  const [generationMode, setGenerationMode] = useState("chat")
+  const [showModeSelector, setShowModeSelector] = useState(false)
+  const [tokenUsage, setTokenUsage] = useState(0)
+  const [maxTokenLimit, setMaxTokenLimit] = useState(MAX_TOKENS)
+  const [selectedCategory, setSelectedCategory] = useState("general")
+  const [templates, setTemplates] = useState([])
+  const [selectedTemplate, setSelectedTemplate] = useState(null)
+  const [showCustomSettings, setShowCustomSettings] = useState(false)
+  const [customSettings, setCustomSettings] = useState<CustomSettings>({
+    temperature: 0.7,
+    max_tokens: 1000,
+    isCustom: false
+  })
+  const [selectedModel, setSelectedModel] = useState<string | null>(null)
+  const [showModelSelector, setShowModelSelector] = useState(false)
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null)
+  const modelSelectorRef = useRef<HTMLDivElement>(null)
 
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const outputRef = useRef<HTMLDivElement>(null)
+  const modeSelectorRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCursorVisible((prev) => !prev)
-    }, 530)
-    return () => clearInterval(interval)
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [isUploading, setIsUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [selectedAnalysisType, setSelectedAnalysisType] = useState<string>('summary')
+
+  const updateSystemStats = useCallback(() => {
+    setSystemStats({
+      cpu: Math.floor(Math.random() * 100),
+      memory: Math.floor(Math.random() * 100),
+      uptime: new Date().toLocaleTimeString(),
+    })
   }, [])
 
-  useEffect(() => {
+  const toggleCursor = useCallback(() => {
+    setCursorVisible(prev => !prev)
+  }, [])
+
+  const scrollToBottom = useCallback(() => {
     if (outputRef.current) {
       outputRef.current.scrollTop = outputRef.current.scrollHeight
     }
-  }, [output])
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setSystemStats({
-        cpu: Math.floor(Math.random() * 100),
-        memory: Math.floor(Math.random() * 100),
-        uptime: new Date().toLocaleTimeString(),
-      })
-    }, 3000)
-    return () => clearInterval(interval)
   }, [])
 
   useEffect(() => {
-    if (prompt.trim()) {
-      const matchingCommands = COMMANDS.filter((cmd) => cmd.name.startsWith(prompt.trim().split(" ")[0])).map(
-        (cmd) => cmd.name,
-      )
-
-      setSuggestions(matchingCommands)
-      setShowSuggestions(matchingCommands.length > 0 && matchingCommands[0] !== prompt.trim())
-    } else {
-      setSuggestions([])
-      setShowSuggestions(false)
+    function handleClickOutside(event: MouseEvent) {
+      if (modeSelectorRef.current && !modeSelectorRef.current.contains(event.target as Node)) {
+        setShowModeSelector(false)
+      }
+      if (modelSelectorRef.current && !modelSelectorRef.current.contains(event.target as Node)) {
+        setShowModelSelector(false)
+      }
     }
+    if (showModeSelector || showModelSelector) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [showModeSelector, showModelSelector])
+
+  useEffect(() => {
+    const cursorInterval = setInterval(toggleCursor, 530)
+    const statsInterval = setInterval(updateSystemStats, 3000)
+   
+    return () => {
+      clearInterval(cursorInterval)
+      clearInterval(statsInterval)
+    }
+  }, [toggleCursor, updateSystemStats])
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [output, generatedImage, scrollToBottom])
+
+  const suggestions = useMemo(() => {
+    if (!prompt.trim()) return []
+    return COMMANDS
+      .filter(cmd => cmd.name.startsWith(prompt.trim().split(" ")[0]))
+      .map(cmd => cmd.name)
   }, [prompt])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!prompt.trim()) return
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!prompt.trim()) return;
 
-    setIsLoading(true)
-    setOutput("")
-    setShowSuggestions(false)
+    setIsLoading(true);
+    setOutput('');
+    setCurrentOutput('');
+    setGeneratedImage(null);
+    setIsTyping(true);
 
-    setCommandHistory((prev) => [prompt, ...prev])
-    setHistoryIndex(-1)
+    try {
+      const temperature = customSettings.isCustom
+        ? customSettings.temperature
+        : getTemperatureByMode(temperatureMode);
+     
+      const max_tokens = customSettings.isCustom
+        ? customSettings.max_tokens
+        : getMaxTokensByLength(lengthMode);
 
-    let response = ""
-    const command = prompt.trim().split(" ")[0].toLowerCase()
-    const args = prompt.trim().split(" ").slice(1).join(" ")
+      const model = selectedModel || getModelByCategory(selectedCategory);
 
-    switch (command) {
-      case "help":
-        response =
-          "Available commands:\n\n" +
-          COMMANDS.map((cmd) => `${cmd.name}${cmd.args ? " " + cmd.args : ""} - ${cmd.description}`).join("\n")
-        break
-      case "clear":
-        setOutput("")
-        setIsLoading(false)
-        setPrompt("")
-        return
-      case "echo":
-        response = args || ""
-        break
-      case "system":
-        response = `System Information:\n\nCPU Usage: ${systemStats.cpu}%\nMemory Usage: ${systemStats.memory}%\nUptime: ${systemStats.uptime}`
-        break
-      case "time":
-        response = `Current time: ${new Date().toLocaleString()}`
-        break
-      case "theme":
-        response = `Theme changed to: ${args || "default"}`
-        break
-      case "split":
-        setSplitView(!splitView)
-        response = `Split view ${!splitView ? "enabled" : "disabled"}`
-        break
-      case "fullscreen":
-        setFullscreen(!fullscreen)
-        response = `Fullscreen mode ${!fullscreen ? "enabled" : "disabled"}`
-        break
-      case "save":
-        response = `Session saved with ID: SESSION_${Math.floor(Math.random() * 10000)}`
-        break
-      default:
-        response = `This is a simulated response for: "${prompt}"\n\nIn a real implementation, this would connect to your AI model backend and return the actual generated content based on the user's prompt.`
-    }
+      if (model === "stable-diffusion-xl-1024-v1-0") {
+        const response = await fetch("http://localhost:3000/api/v1/generations", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            prompt: prompt.trim(),
+            model: "stable-diffusion-xl-1024-v1-0",
+            parameters: {
+              temperature,
+              max_tokens
+            }
+          }),
+        });
 
-    if (splitView && command !== "split") {
-      setSecondaryOutput(response)
-    } else {
-      let displayedOutput = ""
-      const newId = Date.now()
-      setActiveId(newId)
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
-      for (let i = 0; i < response.length; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 15))
-        displayedOutput += response[i]
-        setOutput(displayedOutput)
+        const result = await response.json();
+       
+        if (result.imageUrl) {
+          setGeneratedImage(result.imageUrl);
+          setOutput(`Image generated from prompt: "${prompt.trim()}"`);
+         
+          const newHistoryItem: HistoryItem = {
+            prompt,
+            output: `Image generated from prompt: "${prompt.trim()}"`,
+            id: Date.now(),
+            category: selectedCategory,
+            imageUrl: result.imageUrl
+          };
+          setHistory(prev => [...prev, newHistoryItem]);
+        } else {
+          throw new Error("No image URL in response");
+        }
+      } else {
+        const response = await generationService.createGeneration(
+          prompt.trim(),
+          selectedCategory,
+          temperature,
+          max_tokens,
+          model
+        );
+
+        // @ts-ignore
+        const result = response.generation.content;
+        const newHistoryItem: HistoryItem = {
+          prompt,
+          output: result,
+          id: Date.now(),
+          category: selectedCategory,
+          template: selectedTemplate || undefined
+        };
+
+        setHistory(prev => [...prev, newHistoryItem]);
+        setCommandHistory(prev => [...prev, prompt]);
+
+        let currentText = '';
+        for (let i = 0; i < result.length; i++) {
+          await new Promise(resolve => setTimeout(resolve, 10));
+          currentText += result[i];
+          setCurrentOutput(currentText);
+        }
+
+        setOutput(result);
       }
 
-      setHistory((prev) => [...prev, { prompt, output: response, id: newId }])
+      setPrompt('');
+      setHistoryIndex(-1);
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || error.message;
+      setOutput(`Error: ${errorMessage}`);
+      setCurrentOutput(`Error: ${errorMessage}`);
+    } finally {
+      setIsLoading(false);
+      setIsTyping(false);
     }
+  }, [prompt, temperatureMode, lengthMode, selectedCategory, selectedTemplate, customSettings, selectedModel]);
 
-    setIsLoading(false)
-    setPrompt("")
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       handleSubmit(e)
@@ -183,7 +406,7 @@ export default function Home() {
       if (commandHistory.length > 0 && historyIndex < commandHistory.length - 1) {
         const newIndex = historyIndex + 1
         setHistoryIndex(newIndex)
-        setPrompt(commandHistory[newIndex])
+        setPrompt(commandHistory[commandHistory.length - 1 - newIndex])
       }
       return
     }
@@ -193,45 +416,108 @@ export default function Home() {
       if (historyIndex > 0) {
         const newIndex = historyIndex - 1
         setHistoryIndex(newIndex)
-        setPrompt(commandHistory[newIndex])
+        setPrompt(commandHistory[commandHistory.length - 1 - newIndex])
       } else if (historyIndex === 0) {
         setHistoryIndex(-1)
         setPrompt("")
       }
       return
     }
+  }, [handleSubmit, suggestions, commandHistory, historyIndex])
 
-    if (e.key === "Escape") {
-      setShowSuggestions(false)
-    }
-  }
-
-  const loadFromHistory = (item: { prompt: string; output: string; id: number }) => {
+  const loadFromHistory = useCallback((item: HistoryItem) => {
     setPrompt(item.prompt)
     setOutput(item.output)
     setActiveId(item.id)
+    if (item.imageUrl) {
+      setGeneratedImage(item.imageUrl)
+    } else {
+      setGeneratedImage(null)
+    }
     if (promptRef.current) {
       promptRef.current.focus()
     }
-  }
+  }, [])
 
-  const clearOutput = () => {
+  const clearOutput = useCallback(() => {
     setOutput("")
+    setGeneratedImage(null)
     setActiveId(null)
-  }
+  }, [])
 
-  const clearHistory = () => {
+  const clearHistory = useCallback(() => {
     setHistory([])
     setCommandHistory([])
-  }
+  }, [])
 
-  const applySuggestion = (suggestion: string) => {
+  const applySuggestion = useCallback((suggestion: string) => {
     setPrompt(suggestion + " ")
-    setShowSuggestions(false)
     if (promptRef.current) {
       promptRef.current.focus()
     }
-  }
+  }, [])
+
+  const handleModeSelection = useCallback((modeId: string) => {
+    setGenerationMode(modeId)
+    setShowModeSelector(false)
+  }, [])
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        if (!file.name.match(/\.(csv|json|txt)$/i)) {
+          alert('Please upload a CSV, JSON, or TXT file');
+          continue;
+        }
+
+        const newFile: UploadedFile = {
+          id: Date.now().toString(),
+          filename: file.name,
+          size: file.size,
+          type: file.type,
+          status: 'uploading',
+          progress: 0
+        };
+        setUploadedFiles(prev => [...prev, newFile]);
+
+        const uploadResponse = await fileService.uploadFile(file);
+       
+        setUploadedFiles(prev => prev.map(f =>
+          f.id === newFile.id
+            ? { ...f, id: uploadResponse.id, status: 'processing' }
+            : f
+        ));
+
+        const processResponse = await fileService.processFile(uploadResponse.id, {
+          model: selectedModel || getModelByCategory(selectedCategory),
+          temperature: customSettings.isCustom ? customSettings.temperature : getTemperatureByMode(temperatureMode),
+          max_tokens: customSettings.isCustom ? customSettings.max_tokens : getMaxTokensByLength(lengthMode)
+        });
+
+        setUploadedFiles(prev => prev.map(f =>
+          f.id === uploadResponse.id
+            ? { ...f, status: processResponse.status }
+            : f
+        ));
+
+        if (processResponse.status === 'completed' && processResponse.result) {
+          setOutput(processResponse.result);
+        }
+      }
+    } catch (error) {
+      console.error('File upload error:', error);
+      alert('Error uploading file. Please try again.');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen bg-black text-white font-mono">
@@ -294,6 +580,362 @@ export default function Home() {
         </div>
       </div>
 
+      <div className="bg-zinc-900/50 border-b border-white/10 px-4 py-2 text-xs text-white/60 flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span>Category:</span>
+            <div className="flex gap-1">
+              {PROMPT_CATEGORIES.map((category) => (
+                <button
+                  key={category.id}
+                  onClick={() => setSelectedCategory(category.id)}
+                  className={`px-2 py-1 rounded-sm transition-colors ${
+                    selectedCategory === category.id
+                      ? "bg-white/20 text-white"
+                      : "hover:bg-white/10 text-white/60"
+                  }`}
+                  title={category.label}
+                >
+                  {category.icon} {category.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span>Model:</span>
+            <div className="relative">
+              <button
+                onClick={() => setShowModelSelector(!showModelSelector)}
+                className="px-2 py-1 rounded-sm bg-white/10 hover:bg-white/20 transition-colors flex items-center gap-1"
+              >
+                {generationService.getModelOptions().find(m => m.id === selectedModel)?.icon || '🤖'}
+                {generationService.getModelOptions().find(m => m.id === selectedModel)?.label || 'Auto Select'}
+              </button>
+             
+              {showModelSelector && (
+                <div
+                  ref={modelSelectorRef}
+                  className="absolute top-full left-0 mt-1 bg-zinc-900 border border-white/10 rounded-sm p-2 w-64 z-50"
+                >
+                  <div className="space-y-2">
+                    {generationService.getModelOptions().map((model) => (
+                      <button
+                        key={model.id}
+                        onClick={() => {
+                          setSelectedModel(model.id);
+                          setShowModelSelector(false);
+                        }}
+                        className={`w-full p-2 rounded-sm text-left flex items-start gap-2 transition-colors ${
+                          selectedModel === model.id
+                            ? 'bg-white/20 text-white'
+                            : 'hover:bg-white/10 text-white/60'
+                        }`}
+                      >
+                        <span className="text-lg">{model.icon}</span>
+                        <div>
+                          <div className="font-medium">{model.label}</div>
+                          <div className="text-xs text-white/40">{model.description}</div>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {model.capabilities.map(cap => (
+                              <span key={cap} className="text-[10px] px-1 py-0.5 bg-white/5 rounded">
+                                {cap}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => {
+                        setSelectedModel(null);
+                        setShowModelSelector(false);
+                      }}
+                      className={`w-full p-2 rounded-sm text-left flex items-start gap-2 transition-colors ${
+                        selectedModel === null
+                          ? 'bg-white/20 text-white'
+                          : 'hover:bg-white/10 text-white/60'
+                      }`}
+                    >
+                      <span className="text-lg">🤖</span>
+                      <div>
+                        <div className="font-medium">Auto Select</div>
+                        <div className="text-xs text-white/40">Choose the best model based on category</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span>Mode:</span>
+            <div className="flex gap-1">
+              {TEMPERATURE_MODES.map((mode, index) => (
+                <button
+                  key={mode.label}
+                  onClick={() => {
+                    if (mode.value === -1) {
+                      setShowCustomSettings(true);
+                    } else {
+                      setCustomSettings(prev => ({ ...prev, isCustom: false }));
+                      setTemperatureMode(index);
+                    }
+                  }}
+                  className={`px-2 py-1 rounded-sm transition-colors ${
+                    temperatureMode === index
+                      ? "bg-white/20 text-white"
+                      : "hover:bg-white/10 text-white/60"
+                  }`}
+                  title={mode.description}
+                >
+                  {mode.icon || mode.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span>Length:</span>
+            <div className="flex gap-1">
+              {LENGTH_MODES.map((mode, index) => (
+                <button
+                  key={mode.label}
+                  onClick={() => {
+                    if (mode.value === -1) {
+                      setShowCustomSettings(true);
+                    } else {
+                      setCustomSettings(prev => ({ ...prev, isCustom: false }));
+                      setLengthMode(index);
+                    }
+                  }}
+                  className={`px-2 py-1 rounded-sm transition-colors ${
+                    lengthMode === index
+                      ? "bg-white/20 text-white"
+                      : "hover:bg-white/10 text-white/60"
+                  }`}
+                  title={mode.description}
+                >
+                  {mode.icon || mode.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept=".csv,.json,.txt"
+              className="hidden"
+              multiple
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-3 py-1.5 rounded-sm bg-white/10 hover:bg-white/20 transition-colors flex items-center gap-2"
+              disabled={isUploading}
+              title="Upload CSV, JSON, or TXT files"
+            >
+              <Upload className="w-4 h-4" />
+              <span className="text-sm">
+                {isUploading ? 'Uploading...' : 'Upload File'}
+              </span>
+            </button>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowModeSelector(!showModeSelector)}
+            className="px-2 py-1 rounded-sm bg-white/10 hover:bg-white/20 transition-colors"
+          >
+            {GENERATION_MODES.find(m => m.id === generationMode)?.icon} {GENERATION_MODES.find(m => m.id === generationMode)?.label}
+          </button>
+         
+          {showModeSelector && (
+            <div
+              ref={modeSelectorRef}
+              className="absolute top-8 right-0 bg-zinc-900 border border-white/20 rounded-sm p-2 w-64 z-50 shadow-lg"
+            >
+              <div className="grid grid-cols-2 gap-2">
+                {GENERATION_MODES.map(mode => (
+                  <button
+                    key={mode.id}
+                    onClick={() => handleModeSelection(mode.id)}
+                    className={`p-2 rounded-sm transition-colors flex flex-col items-center gap-1 ${
+                      generationMode === mode.id
+                        ? "bg-white/20 text-white"
+                        : "hover:bg-white/10 text-white/60"
+                    }`}
+                  >
+                    <span className="text-lg">{mode.icon}</span>
+                    <span className="text-xs">{mode.label}</span>
+                    <span className="text-[10px] text-white/40">{mode.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {showCustomSettings && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+          <div className="bg-zinc-900 p-6 rounded-lg w-96 border border-white/10 shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Custom Settings</h3>
+              <button
+                onClick={() => setShowCustomSettings(false)}
+                className="text-white/60 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-sm">Temperature</label>
+                  <span className="text-xs text-white/60">
+                    {customSettings.temperature.toFixed(1)}
+                  </span>
+                </div>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={customSettings.temperature}
+                    onChange={(e) => setCustomSettings(prev => ({
+                      ...prev,
+                      temperature: parseFloat(e.target.value),
+                      isCustom: true
+                    }))}
+                    className="flex-1 h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={customSettings.temperature}
+                    onChange={(e) => setCustomSettings(prev => ({
+                      ...prev,
+                      temperature: parseFloat(e.target.value),
+                      isCustom: true
+                    }))}
+                    className="w-16 bg-black border border-white/20 rounded px-2 py-1 text-sm"
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-white/60 mt-1">
+                  <span>Precise (0.2)</span>
+                  <span>Balanced (0.7)</span>
+                  <span>Creative (0.9)</span>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-sm">Max Tokens</label>
+                  <span className="text-xs text-white/60">
+                    {customSettings.max_tokens}
+                  </span>
+                </div>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="range"
+                    min="100"
+                    max="4000"
+                    step="100"
+                    value={customSettings.max_tokens}
+                    onChange={(e) => setCustomSettings(prev => ({
+                      ...prev,
+                      max_tokens: parseInt(e.target.value),
+                      isCustom: true
+                    }))}
+                    className="flex-1 h-2 bg-white/10 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <input
+                    type="number"
+                    min="100"
+                    max="4000"
+                    step="100"
+                    value={customSettings.max_tokens}
+                    onChange={(e) => setCustomSettings(prev => ({
+                      ...prev,
+                      max_tokens: parseInt(e.target.value),
+                      isCustom: true
+                    }))}
+                    className="w-20 bg-black border border-white/20 rounded px-2 py-1 text-sm"
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-white/60 mt-1">
+                  <span>Short (500)</span>
+                  <span>Medium (1000)</span>
+                  <span>Long (2000)</span>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-4 border-t border-white/10">
+                <button
+                  onClick={() => {
+                    setShowCustomSettings(false);
+                    setCustomSettings(prev => ({ ...prev, isCustom: false }));
+                  }}
+                  className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded text-sm"
+                >
+                  Reset
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCustomSettings(false);
+                    setCustomSettings(prev => ({ ...prev, isCustom: true }));
+                  }}
+                  className="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded text-sm"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {uploadedFiles.length > 0 && (
+        <div className="border-b border-white/10 p-2">
+          <div className="flex items-center gap-2 text-xs text-white/60 mb-2">
+            <FileText className="w-4 h-4" />
+            <span>Uploaded Files</span>
+          </div>
+          <div className="space-y-2">
+            {uploadedFiles.map((file) => (
+              <div
+                key={file.id}
+                className="flex items-center justify-between p-2 bg-white/5 rounded-sm"
+              >
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-white/60" />
+                  <span className="text-xs">
+                    {file.filename} ({Math.round(file.size / 1024)}KB)
+                  </span>
+                  <span className={`text-[10px] px-1 py-0.5 rounded ${
+                    file.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                    file.status === 'processing' ? 'bg-blue-500/20 text-blue-400' :
+                    file.status === 'error' ? 'bg-red-500/20 text-red-400' :
+                    'bg-yellow-500/20 text-yellow-400'
+                  }`}>
+                    {file.status}
+                  </span>
+                </div>
+                {file.progress !== undefined && (
+                  <div className="w-24 h-1 bg-white/10 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-white/60 transition-all duration-300"
+                      style={{ width: `${file.progress}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <main className={`flex-1 flex flex-col md:flex-row overflow-hidden ${fullscreen ? "absolute inset-0 z-10 bg-black" : ""}`}>
         <div className={`border-r border-white/20 flex flex-col bg-gradient-to-b from-black to-zinc-900/30 ${fullscreen ? "hidden" : splitView ? "md:w-1/3" : "md:w-1/2"}`}>
           <div className="p-6 border-b border-white/20">
@@ -318,7 +960,7 @@ export default function Home() {
                   style={{ caretColor: "white" }}
                 />
 
-                {showSuggestions && (
+                {suggestions.length > 0 && (
                   <div className="absolute left-0 right-0 bottom-full mb-1 bg-zinc-900 border border-white/20 rounded-sm shadow-lg z-10">
                     <div className="p-1 max-h-32 overflow-y-auto">
                       {suggestions.map((suggestion, index) => (
@@ -409,7 +1051,16 @@ export default function Home() {
                     <Command className="w-3 h-3 text-white/60" />
                     {item.prompt}
                   </div>
-                  <div className="text-xs text-white/70 line-clamp-2">{item.output}</div>
+                  <div className="text-xs text-white/70 line-clamp-2">
+                    {item.imageUrl ? (
+                      <span className="flex items-center gap-1">
+                        <ImageIcon className="w-3 h-3" />
+                        Image generated
+                      </span>
+                    ) : (
+                      item.output
+                    )}
+                  </div>
                 </div>
               ))}
               {history.length === 0 && (
@@ -435,87 +1086,71 @@ export default function Home() {
                 CLEAR
               </button>
               <button
-                onClick={() => navigator.clipboard.writeText(output)}
+                onClick={() => {
+                  if (generatedImage) {
+                    navigator.clipboard.writeText(prompt);
+                  } else {
+                    navigator.clipboard.writeText(output);
+                  }
+                }}
                 className="text-xs text-white/50 hover:text-white transition-colors px-2 py-1 hover:bg-white/10 rounded-sm flex items-center gap-1"
               >
                 <Copy className="w-3 h-3" />
                 COPY
               </button>
-              <button
-                onClick={() => setFullscreen(!fullscreen)}
-                className="text-xs text-white/50 hover:text-white transition-colors px-2 py-1 hover:bg-white/10 rounded-sm"
-              >
-                {fullscreen ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
-              </button>
+              {generatedImage && (
+                <button
+                  onClick={() => {
+                    const link = document.createElement('a');
+                    link.href = generatedImage;
+                    link.download = `generated-image-${Date.now()}.png`;
+                    link.click();
+                  }}
+                  className="text-xs text-white/50 hover:text-white transition-colors px-2 py-1 hover:bg-white/10 rounded-sm flex items-center gap-1"
+                >
+                  <Download className="w-3 h-3" />
+                  SAVE
+                </button>
+              )}
             </div>
           </div>
 
-          {splitView && !fullscreen ? (
-            <div className="flex-1 flex">
-              <div className="w-1/2 border-r border-white/20 relative">
-                <div className="absolute top-0 left-0 p-2 text-xs text-white/40 bg-black/50 rounded-br-sm">
-                  Mars 1
-                </div>
-                <div ref={outputRef} className="h-full p-6 overflow-auto text-sm whitespace-pre-wrap leading-relaxed">
-                  {output ? (
-                    <div className="relative">
-                      {output}
-                      {isLoading && cursorVisible && (
-                        <span className="inline-block w-2 h-4 bg-white ml-0.5 animate-pulse"></span>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-center">
-                      <div className="w-12 h-12 border-2 border-white/20 rounded-full mb-4 flex items-center justify-center">
-                        <Terminal className="w-5 h-5 text-white/50" />
-                      </div>
-                      <span className="text-white/40 italic">Mars 1 output...</span>
-                    </div>
-                  )}
+          <div
+            ref={outputRef}
+            className="flex-1 p-6 overflow-auto text-sm whitespace-pre-wrap leading-relaxed relative"
+          >
+            <div className="absolute inset-0 pointer-events-none opacity-10 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.1),transparent_80%)]"></div>
+            {isLoading ? (
+              <div className="relative">
+                {currentOutput}
+                {cursorVisible && (
+                  <span className="inline-block w-2 h-4 bg-white ml-0.5 animate-pulse"></span>
+                )}
+              </div>
+            ) : generatedImage ? (
+              <div className="relative">
+                <p className="mb-4">{output}</p>
+                <img
+                  src={generatedImage}
+                  alt={`Generated from prompt: ${prompt}`}
+                  className="max-w-full h-auto rounded-sm border border-white/20"
+                />
+                <div className="mt-4 text-xs text-white/60">
+                  <p>Prompt: {prompt || history.find(h => h.imageUrl === generatedImage)?.prompt}</p>
                 </div>
               </div>
-              <div className="w-1/2 relative">
-                <div className="absolute top-0 left-0 p-2 text-xs text-white/40 bg-black/50 rounded-br-sm">
-                  Mars 2
+            ) : output ? (
+              <div className="relative">{output}</div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="w-12 h-12 border-2 border-white/20 rounded-full mb-4 flex items-center justify-center">
+                  <Terminal className="w-5 h-5 text-white/50" />
                 </div>
-                <div className="h-full p-6 overflow-auto text-sm whitespace-pre-wrap leading-relaxed">
-                  {secondaryOutput ? (
-                    <div className="relative">{secondaryOutput}</div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-center">
-                      <div className="w-12 h-12 border-2 border-white/20 rounded-full mb-4 flex items-center justify-center">
-                        <Terminal className="w-5 h-5 text-white/50" />
-                      </div>
-                      <span className="text-white/40 italic">Mars 2 output...</span>
-                    </div>
-                  )}
-                </div>
+                <span className="text-white/40 italic">Output will appear here...</span>
+                <span className="text-xs text-white/30 mt-2">Type "help" to see available commands</span>
               </div>
-            </div>
-          ) : (
-            <div
-              ref={outputRef}
-              className="flex-1 p-6 overflow-auto text-sm whitespace-pre-wrap leading-relaxed relative"
-            >
-              <div className="absolute inset-0 pointer-events-none opacity-10 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.1),transparent_80%)]"></div>
-              {output ? (
-                <div className="relative">
-                  {output}
-                  {isLoading && cursorVisible && (
-                    <span className="inline-block w-2 h-4 bg-white ml-0.5 animate-pulse"></span>
-                  )}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full text-center">
-                  <div className="w-12 h-12 border-2 border-white/20 rounded-full mb-4 flex items-center justify-center">
-                    <Terminal className="w-5 h-5 text-white/50" />
-                  </div>
-                  <span className="text-white/40 italic">Output will appear here...</span>
-                  <span className="text-xs text-white/30 mt-2">Type "help" to see available commands</span>
-                </div>
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </main>
 

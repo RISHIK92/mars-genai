@@ -1,8 +1,11 @@
 "use client"
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import { authService } from '../../services/auth';
+import { useRouter } from 'next/navigation';
 
 const Login: React.FC = () => {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -10,7 +13,28 @@ const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [mounted, setMounted] = useState(false);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    const checkAuth = async () => {
+      try {
+        if (authService.isAuthenticated()) {
+          await authService.getCurrentUser();
+          router.replace('/chat');
+        }
+      } catch (error) {
+        authService.logout();
+      }
+    };
+    
+    checkAuth();
+  }, [router, mounted]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,19 +55,19 @@ const Login: React.FC = () => {
     setIsLoading(true);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
+      await authService.login(email, password);
       setSuccessMessage("Login successful! Redirecting...");
-
-      setTimeout(() => {
-
-      }, 1000);
-    } catch (error) {
-      setErrorMessage("Invalid email or password");
+      router.replace('/chat');
+    } catch (error: any) {
+      setErrorMessage(error.response?.data?.error || "Invalid email or password");
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center p-4">
