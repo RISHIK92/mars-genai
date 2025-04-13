@@ -1,26 +1,21 @@
 "use client"
 
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 
-// Self-contained Profile component without external dependencies
 const Profile: React.FC = () => {
-    // User data state
     const [userData, setUserData] = useState({
-        name: 'Varun Udata',
-        email: 'varunudata@example.com',
-        phone: '+1 (555) 123-4567',
-        location: 'San Francisco, CA',
-        position: 'Product Designer',
+        name: 'User Tes',
+        email: 'usertest@example.com',
+        phone: '91 987654323',
+        location: 'India',
+        position: 'Dev',
         joinDate: 'January 2023',
-        bio: 'Passionate product designer with 5+ years of experience in creating user-centered digital solutions. Specialized in UI/UX design and design systems.'
+        bio: 'This is the bio'
     });
 
-    // Edit mode state
     const [editMode, setEditMode] = useState(false);
     const [editData, setEditData] = useState(userData);
 
-    // Profile picture state
     const [avatarUrl, setAvatarUrl] = useState('https://th.bing.com/th/id/OIP.C37g9qEC0oJ3Dz35nelhcQHaFj?rs=1&pid=ImgDetMain');
 
     const handleSave = () => {
@@ -41,7 +36,6 @@ const Profile: React.FC = () => {
         }));
     };
 
-    // Inline icon components to avoid external dependencies
     const UserIcon = () => (
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
@@ -114,7 +108,6 @@ const Profile: React.FC = () => {
         </svg>
     );
 
-    // Inline Logo component
     const Logo = () => (
         <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-genai-purple rounded-md flex items-center justify-center">
@@ -124,7 +117,6 @@ const Profile: React.FC = () => {
         </div>
     );
 
-    // Inline AnimatedBackground component
     const AnimatedBackground = () => (
         <div className="fixed inset-0 pointer-events-none z-0">
             <div className="absolute -top-40 -right-40 w-80 h-80 bg-genai-purple/20 rounded-full filter blur-3xl opacity-70"></div>
@@ -133,7 +125,6 @@ const Profile: React.FC = () => {
         </div>
     );
 
-    // Inline Button component 
     const Button = ({
         children,
         variant = "default",
@@ -165,7 +156,6 @@ const Profile: React.FC = () => {
         );
     };
 
-    // Inline Card components
     const Card = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
         <div className={`rounded-lg border bg-card text-card-foreground shadow-sm ${className}`}>
             {children}
@@ -203,12 +193,8 @@ const Profile: React.FC = () => {
 
     return (
         <div className="relative min-h-screen">
-            {/* Animated Background */}
             <AnimatedBackground />
-
-            {/* Content */}
             <div className="relative z-10 min-h-screen flex flex-col">
-                {/* Header */}
                 <header className="w-full p-4 glass-card bg-genai-dark-light/50 backdrop-blur-lg border-b border-red-/10">
                     <div className="container mx-auto flex justify-between items-center">
 
@@ -216,7 +202,6 @@ const Profile: React.FC = () => {
                     </div>
                 </header>
 
-                {/* Main Content */}
                 <main className="flex-1 container mx-auto p-4 md:p-8 flex flex-col items-center">
                     <div className="max-w-4xl w-full glass-card rounded-xl p-6 backdrop-blur-lg">
                         {/* Profile Header - User info & avatar */}
