@@ -1,7 +1,7 @@
 "use client"
 import type React from "react"
 import { useState, useEffect } from "react"
-import { Eye, EyeOff, Lock, Mail } from "lucide-react"
+import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import { authService } from "../../services/auth"
 import { useRouter } from "next/navigation"
 
@@ -202,7 +202,7 @@ const Login: React.FC = () => {
                     id="email"
                     type="email"
                     placeholder="you@example.com"
-                    className="w-full pl-10 py-3 border border-[#e6ddd6] rounded-lg focus:ring-2 focus:ring-[#c1440e] focus:border-[#c1440e] bg-[#fdfcfb]"
+                    className="w-full pl-10 py-3 border border-[#e6ddd6] rounded-lg focus:ring-2 focus:ring-[#c1440e] focus:border-[#c1440e] bg-[#fdfcfb] text-[#5c2c06]"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -227,7 +227,7 @@ const Login: React.FC = () => {
                     id="password"
                     type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
-                    className="w-full pl-10 py-3 border border-[#e6ddd6] rounded-lg focus:ring-2 focus:ring-[#c1440e] focus:border-[#c1440e] bg-[#fdfcfb]"
+                    className="w-full pl-10 py-3 border border-[#e6ddd6] rounded-lg focus:ring-2 focus:ring-[#c1440e] focus:border-[#c1440e] bg-[#fdfcfb] text-[#5c2c06]"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
