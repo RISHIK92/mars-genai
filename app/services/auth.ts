@@ -30,6 +30,8 @@ export const authService = {
     if (response.data.token) {
       // @ts-ignore
       setCookie('token', response.data.token);
+      // @ts-ignore
+      localStorage.setItem('token', response.data.token);
     }
     return response.data;
   },
