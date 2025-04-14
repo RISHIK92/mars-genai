@@ -23,6 +23,9 @@ import {
   Trash2,
   Upload,
   FileText,
+  Table,
+  BarChart,
+  LineChart,
   Download,
   Image as ImageIcon,
 } from "lucide-react"
@@ -49,6 +52,14 @@ interface CustomSettings {
   isCustom: boolean;
 }
 
+interface ModelOption {
+  id: string;
+  label: string;
+  description: string;
+  icon: string;
+  capabilities: string[];
+}
+
 interface UploadedFile {
   id: string;
   filename: string;
@@ -56,6 +67,7 @@ interface UploadedFile {
   type: string;
   status: string;
   progress?: number;
+  analysisType?: 'summary' | 'insights' | 'trends';
   parsedData?: any;
 }
 
@@ -92,10 +104,10 @@ const GENERATION_MODES = [
     label: "Chat",
     icon: "💬",
     description: "General conversation and Q&A",
-    model: "gemini-2.0-flash-lite-001",
+    model: "gemini-2.0-pro",
     parameters: {
       temperature: 0.7,
-      max_tokens: 1000
+      max_tokens: 400
     }
   },
   {
@@ -103,7 +115,7 @@ const GENERATION_MODES = [
     label: "Research",
     icon: "🔍",
     description: "In-depth research and analysis",
-    model: "gemini-2.0-pro",
+    model: "claude-3-sonnet",
     parameters: {
       temperature: 0.3,
       max_tokens: 2000
@@ -114,7 +126,7 @@ const GENERATION_MODES = [
     label: "Code",
     icon: "💻",
     description: "Code generation and programming help",
-    model: "gemini-2.0-pro",
+    model: "claude-3-sonnet",
     parameters: {
       temperature: 0.2,
       max_tokens: 2000
@@ -174,7 +186,7 @@ const getMaxTokensByLength = (length: number): number => {
   }
 };
 
-export default function Home() {
+export default function Chat() {
   const [prompt, setPrompt] = useState("")
   const [output, setOutput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -186,13 +198,17 @@ export default function Home() {
   const [fullscreen, setFullscreen] = useState(false)
   const [splitView, setSplitView] = useState(false)
   const [systemStats, setSystemStats] = useState<SystemStats>({ cpu: 42, memory: 68, uptime: "12:34:56" })
+  const [secondaryOutput, setSecondaryOutput] = useState("")
   const [currentOutput, setCurrentOutput] = useState("")
   const [isTyping, setIsTyping] = useState(false)
   const [temperatureMode, setTemperatureMode] = useState(1)
   const [lengthMode, setLengthMode] = useState(1)
   const [generationMode, setGenerationMode] = useState("chat")
   const [showModeSelector, setShowModeSelector] = useState(false)
+  const [tokenUsage, setTokenUsage] = useState(0)
+  const [maxTokenLimit, setMaxTokenLimit] = useState(MAX_TOKENS)
   const [selectedCategory, setSelectedCategory] = useState("general")
+  const [templates, setTemplates] = useState([])
   const [selectedTemplate, setSelectedTemplate] = useState(null)
   const [showCustomSettings, setShowCustomSettings] = useState(false)
   const [customSettings, setCustomSettings] = useState<CustomSettings>({
@@ -262,6 +278,11 @@ export default function Home() {
   useEffect(() => {
     scrollToBottom()
   }, [output, generatedImage, scrollToBottom])
+  useEffect(() => {
+    if (!selectedModel) {
+      setSelectedModel(null);
+    }
+  }, [selectedCategory]);
 
   const suggestions = useMemo(() => {
     if (!prompt.trim()) return []
@@ -273,56 +294,72 @@ export default function Home() {
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!prompt.trim()) return;
-
+  
     setIsLoading(true);
     setOutput('');
     setCurrentOutput('');
     setGeneratedImage(null);
     setIsTyping(true);
-
+  
     try {
       const temperature = customSettings.isCustom
         ? customSettings.temperature
         : getTemperatureByMode(temperatureMode);
-     
+      
       const max_tokens = customSettings.isCustom
         ? customSettings.max_tokens
         : getMaxTokensByLength(lengthMode);
-
+  
       const model = selectedModel || getModelByCategory(selectedCategory);
+      let authToken = "";
 
+      if (typeof window !== 'undefined') {
+        const cookies = document.cookie.split('; ').reduce((acc: Record<string, string>, current) => {
+          const [key, value] = current.split('=');
+          acc[key] = value;
+          return acc;
+        }, {});
+      
+        authToken = cookies.tokens || cookies.coupons || localStorage.getItem('token') || "";
+      }
+  
       if (model === "stable-diffusion-xl-1024-v1-0") {
         const response = await fetch("http://localhost:3000/api/v1/generations", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...(authToken && { Authorization: `Bearer ${authToken}` }),
           },
           body: JSON.stringify({
             prompt: prompt.trim(),
             model: "stable-diffusion-xl-1024-v1-0",
             parameters: {
               temperature,
-              max_tokens
-            }
+              max_tokens,
+            },
           }),
         });
-
+  
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-
+  
         const result = await response.json();
-       
-        if (result.imageUrl) {
-          setGeneratedImage(result.imageUrl);
+        const parsedResult = JSON.parse(result.generation.result);
+        console.log(parsedResult);
+        console.log(parsedResult.image);
+        
+        if (parsedResult.image) {
+          const imageUrl = `data:image/png;base64,${parsedResult.image}`;
+          setGeneratedImage(imageUrl);
           setOutput(`Image generated from prompt: "${prompt.trim()}"`);
-         
+        
           const newHistoryItem: HistoryItem = {
             prompt,
             output: `Image generated from prompt: "${prompt.trim()}"`,
             id: Date.now(),
             category: selectedCategory,
-            imageUrl: result.imageUrl
+            imageUrl: imageUrl,
           };
           setHistory(prev => [...prev, newHistoryItem]);
         } else {
@@ -336,8 +373,7 @@ export default function Home() {
           max_tokens,
           model
         );
-
-        // @ts-ignore
+        //@ts-ignore
         const result = response.generation.content;
         const newHistoryItem: HistoryItem = {
           prompt,
@@ -346,20 +382,20 @@ export default function Home() {
           category: selectedCategory,
           template: selectedTemplate || undefined
         };
-
+  
         setHistory(prev => [...prev, newHistoryItem]);
         setCommandHistory(prev => [...prev, prompt]);
-
+  
         let currentText = '';
         for (let i = 0; i < result.length; i++) {
           await new Promise(resolve => setTimeout(resolve, 10));
           currentText += result[i];
           setCurrentOutput(currentText);
         }
-
+  
         setOutput(result);
       }
-
+  
       setPrompt('');
       setHistoryIndex(-1);
     } catch (error: any) {
@@ -443,7 +479,7 @@ export default function Home() {
 
   const handleModeSelection = useCallback((modeId: string) => {
     setGenerationMode(modeId)
-    setShowModeSelector(false)
+    setShowModelSelector(false)
   }, [])
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -541,30 +577,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="bg-zinc-900/50 border-b border-white/10 px-4 py-1 text-xs text-white/60 flex justify-between">
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1">
-            <Cpu className="w-3 h-3" />
-            CPU: {systemStats.cpu}%
-            <div className="w-16 h-1 bg-white/20 ml-1">
-              <div className="h-full bg-white/60" style={{ width: `${systemStats.cpu}%` }}></div>
-            </div>
-          </span>
-          <span className="flex items-center gap-1">
-            <Zap className="w-3 h-3" />
-            MEM: {systemStats.memory}%
-            <div className="w-16 h-1 bg-white/20 ml-1">
-              <div className="h-full bg-white/60" style={{ width: `${systemStats.memory}%` }}></div>
-            </div>
-          </span>
-        </div>
-        <div className="flex items-center gap-1">
-          <Clock className="w-3 h-3" />
-          {new Date().toLocaleTimeString()}
-        </div>
-      </div>
-
-      <div className="bg-zinc-900/50 border-b border-white/10 px-4 py-2 text-xs text-white/60 flex justify-between items-center">
+      <div className="bg-zinc-900/50 border-b border-white/10 px-4 py-4 text-xs text-white/60 flex justify-between items-center">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <span>Category:</span>
@@ -595,7 +608,7 @@ export default function Home() {
                 {generationService.getModelOptions().find(m => m.id === selectedModel)?.icon || '🤖'}
                 {generationService.getModelOptions().find(m => m.id === selectedModel)?.label || 'Auto Select'}
               </button>
-             
+              
               {showModelSelector && (
                 <div
                   ref={modelSelectorRef}
@@ -652,7 +665,7 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span>Mode:</span>
+            <span>Model:</span>
             <div className="flex gap-1">
               {TEMPERATURE_MODES.map((mode, index) => (
                 <button

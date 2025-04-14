@@ -47,6 +47,13 @@ const MODEL_OPTIONS: ModelOption[] = [
     description: 'In-depth research and analytical responses',
     icon: '🔍',
     capabilities: ['research', 'analysis', 'academic']
+  },
+  {
+    id: 'stable-diffusion-xl-1024-v1-0',
+    label: 'Image Generation',
+    description: 'Generate images from text prompts',
+    icon: '🖼️',
+    capabilities: ['image']
   }
 ];
 
@@ -58,6 +65,8 @@ export const getModelByCategory = (category: string): string => {
       return 'claude-3-sonnet';
     case 'creative':
       return 'claude-3-opus';
+    case 'image':
+      return 'stable-diffusion-xl-1024-v1-0';
     default:
       return 'gemini-2.0-flash';
   }
@@ -65,11 +74,11 @@ export const getModelByCategory = (category: string): string => {
 
 const getTemperatureByMode = (mode: number): number => {
   switch (mode) {
-    case 0: // Precise
+    case 0:
       return 0.2;
-    case 1: // Balanced
+    case 1:
       return 0.7;
-    case 2: // Creative
+    case 2:
       return 0.9;
     default:
       return 0.7;
@@ -78,11 +87,11 @@ const getTemperatureByMode = (mode: number): number => {
 
 const getMaxTokensByLength = (length: number): number => {
   switch (length) {
-    case 0: // Short
+    case 0:
       return 500;
-    case 1: // Medium
+    case 1:
       return 1000;
-    case 2: // Long
+    case 2:
       return 2000;
     default:
       return 1000;

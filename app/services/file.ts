@@ -101,17 +101,14 @@ export const fileService = {
     onProgress?: (progress: number) => void
   ): Promise<CSVAnalysisResponse> {
     try {
-      // First upload the file
       const uploadResponse = await this.uploadFile(file);
       
-      // Then process it with analysis options
       const processResponse = await this.processFile(uploadResponse.id, {
         model: options.model,
         temperature: options.temperature,
         max_tokens: options.max_tokens
       });
 
-      // Poll for status (simplified version)
       let statusResponse: FileProcessResponse;
       do {
         statusResponse = await this.getFileStatus(uploadResponse.id);
@@ -126,7 +123,6 @@ export const fileService = {
         throw new Error(statusResponse.error || 'File processing failed');
       }
 
-      // Download and return the result
       const result = await this.downloadResult(uploadResponse.id);
       return JSON.parse(await result.text()) as CSVAnalysisResponse;
     } catch (error) {
