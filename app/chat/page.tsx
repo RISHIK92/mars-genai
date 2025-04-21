@@ -324,7 +324,7 @@ export default function Chat() {
       }
   
       if (model === "stable-diffusion-xl-1024-v1-0") {
-        const response = await fetch("http://localhost:3000/api/v1/generations", {
+        const response = await fetch("https://mars-genai-backend.onrender.com/api/v1/generations", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
